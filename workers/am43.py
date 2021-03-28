@@ -9,8 +9,8 @@ from workers.base import BaseWorker
 _LOGGER = logger.get(__name__)
 
 REQUIREMENTS = [
-    "git+https://github.com/GylleTanken/python-zemismart-roller-shade.git"
-    "@36738c72d7382e78e1223c8ae569acab10f498e6#egg=Zemismart"
+    "git+https://github.com/andrey-yantsen/python-zemismart-roller-shade.git"
+    "@5cf7a655895bb61c415d2286bb884c084bb9d503#egg=Zemismart"
 ]
 
 
@@ -100,7 +100,8 @@ class Am43Worker(BaseWorker):
 
             # The docs for this library say that sometimes this needs called
             # multiple times, try up to 5 until we get a battery number
-            shade.update()
+            if not shade.update():
+                continue
 
             battery = shade.battery
 
@@ -231,7 +232,9 @@ class Am43Worker(BaseWorker):
                     device_position = self.correct_value(data, device_state["currentPosition"])
 
                     if value == 'STOP':
-                        shade.stop()
+                        if not shade.stop():
+                            raise AttributeError('shade.stop() failed')
+
                         device_state = {
                             "currentPosition": device_position,
                             "targetPosition": device_position,
@@ -253,7 +256,8 @@ class Am43Worker(BaseWorker):
                     elif value == 'OPEN' and device_position > self.target_range_scale:
                         # Yes, for open command we need to call close(), because "closed blinds" in AM43
                         # means that they're hidden, and the window is full open
-                        shade.close()
+                        if not shade.close():
+                            raise AttributeError('shade.close() failed')
                         device_state = {
                             "currentPosition": device_position,
                             "targetPosition": 0,
@@ -275,7 +279,8 @@ class Am43Worker(BaseWorker):
                             device_name, device_state)
                     elif value == 'CLOSE' and device_position < 100 - self.target_range_scale:
                         # Same as above for 'OPEN': we need to call open() when want to close() the window
-                        shade.open()
+                        if not shade.open():
+                            raise AttributeError('shade.open() failed')
                         device_state = {
                             "currentPosition": device_position,
                             "targetPosition": 100,
@@ -344,7 +349,8 @@ class Am43Worker(BaseWorker):
                             state = "opening"
 
                         # send the new position
-                        shade.set_position(target_position)
+                        if not shade.set_position(target_position):
+                            raise AttributeError('shade.set_position() failed')
 
                         device_state = {
                             "currentPosition": device_position,
