@@ -20,10 +20,8 @@ class Am43Worker(BaseWorker):
     last_target_position = 255
 
     def _setup(self):
-        self._last_position_by_device = {
-            device['mac']: 255 for device in self.devices.values()}
-        self._last_device_update = {
-            device['mac']: 0 for device in self.devices.values()}
+        self._last_position_by_device = {device['mac']: 255 for device in self.devices.values()}
+        self._last_device_update = {device['mac']: 0 for device in self.devices.values()}
 
         if not hasattr(self, 'default_update_interval'):
             self.default_update_interval = None
@@ -98,6 +96,8 @@ class Am43Worker(BaseWorker):
         battery = 0
         retry_attempts = 0
         while battery == 0 and retry_attempts < 5:
+            retry_attempts += 1
+
             # The docs for this library say that sometimes this needs called
             # multiple times, try up to 5 until we get a battery number
             shade.update()
@@ -113,8 +113,7 @@ class Am43Worker(BaseWorker):
                     self.last_target_position = shade.position
 
                 shade_position = self.correct_value(data, shade.position)
-                target_position = self.correct_value(
-                    data, self.last_target_position)
+                target_position = self.correct_value(data, self.last_target_position)
 
                 previous_position = self._last_position_by_device[data['mac']]
                 state = 'stopped'
@@ -139,8 +138,7 @@ class Am43Worker(BaseWorker):
                     "positionState": state,
                 }
             else:
-                _LOGGER.debug("Got battery state 0 for '%s' (%s)",
-                              device_name, data["mac"])
+                _LOGGER.debug("Got battery state 0 for '%s' (%s)", device_name, data["mac"])
 
     def create_mqtt_messages(self, device_name, device_state):
         return [
@@ -171,19 +169,16 @@ class Am43Worker(BaseWorker):
     def single_device_status_update(self, device_name, data):
         import Zemismart
 
-        _LOGGER.debug("Updating %s device '%s' (%s)",
-                      repr(self), device_name, data["mac"])
+        _LOGGER.debug("Updating %s device '%s' (%s)", repr(self), device_name, data["mac"])
 
-        shade = Zemismart.Zemismart(
-            data["mac"], data["pin"], max_connect_time=self.per_device_timeout, withMutex=True)
+        shade = Zemismart.Zemismart(data["mac"], data["pin"], max_connect_time=self.per_device_timeout, withMutex=True)
         try:
             with shade:
                 ret = []
                 device_state = self.get_device_state(device_name, data, shade)
                 ret += self.create_mqtt_messages(device_name, device_state)
 
-                if not device_state['positionState'].endswith(
-                        'ing') and self.default_update_interval != self.update_interval:
+                if not device_state['positionState'].endswith('ing') and self.default_update_interval != self.update_interval:
                     ret.append(
                         MqttMessage(
                             topic=self.format_topic('update_interval'),
@@ -215,8 +210,7 @@ class Am43Worker(BaseWorker):
         _LOGGER.info("On command called with %s %s", topic, value)
         import Zemismart
 
-        topic_without_prefix = topic.replace(
-            "{}/".format(self.topic_prefix), "")
+        topic_without_prefix = topic.replace("{}/".format(self.topic_prefix), "")
         device_name, field, action = topic_without_prefix.split("/")
         ret = []
 
@@ -224,20 +218,17 @@ class Am43Worker(BaseWorker):
             data = self.devices[device_name]
             _LOGGER.debug("On command got device %s %s", device_name, data)
         else:
-            logger.log_exception(
-                _LOGGER, "Ignore command because device %s is unknown", device_name)
+            logger.log_exception(_LOGGER, "Ignore command because device %s is unknown", device_name)
             return ret
 
         value = value.decode("utf-8")
         if field == "positionState" and action == "set":
-            shade = Zemismart.Zemismart(data["mac"], data["pin"], max_connect_time=self.per_device_timeout,
-                                        withMutex=True)
+            shade = Zemismart.Zemismart(data["mac"], data["pin"],
+                                        max_connect_time=self.per_device_timeout, withMutex=True)
             try:
                 with shade:
-                    device_state = self.get_device_state(
-                        device_name, data, shade)
-                    device_position = self.correct_value(
-                        data, device_state["currentPosition"])
+                    device_state = self.get_device_state(device_name, data, shade)
+                    device_position = self.correct_value(data, device_state["currentPosition"])
 
                     if value == 'STOP':
                         shade.stop()
@@ -335,10 +326,8 @@ class Am43Worker(BaseWorker):
                     # get the current state so we can work out direction for update messages
                     # after getting this, convert so we are using the device scale for
                     # values
-                    device_state = self.get_device_state(
-                        device_name, data, shade)
-                    device_position = self.correct_value(
-                        data, device_state["currentPosition"])
+                    device_state = self.get_device_state(device_name, data, shade)
+                    device_position = self.correct_value(data, device_state["currentPosition"])
 
                     if device_position == target_position:
                         # no update required, not moved
@@ -364,8 +353,7 @@ class Am43Worker(BaseWorker):
                             "positionState": state
                         }
 
-                        ret += self.create_mqtt_messages(
-                            device_name, device_state)
+                        ret += self.create_mqtt_messages(device_name, device_state)
 
                         if self.default_update_interval:
                             self.update_interval = 3
